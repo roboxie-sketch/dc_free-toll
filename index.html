@@ -707,7 +707,14 @@ function runLoaderSequence() {
       i++; setTimeout(next, 700 + Math.random() * 400);
     } else {
       document.getElementById('progress-fill').style.width = '100%';
-      setTimeout(() => showScreen('screen-gate'), 600);
+      setTimeout(() => {
+        // Pre-fill domain into company field on gate screen
+        const companyField = document.getElementById('gate-company');
+        if (websiteUrl && !companyField.value) {
+          companyField.value = websiteUrl;
+        }
+        showScreen('screen-gate');
+      }, 600);
     }
   }
   next();
