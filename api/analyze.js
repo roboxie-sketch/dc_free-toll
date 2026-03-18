@@ -1,4 +1,4 @@
-
+console.log('Key starts with:', process.env.OPENAI_API_KEY?.slice(0, 8));
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
