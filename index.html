@@ -1090,16 +1090,89 @@ function showScreen(id) {
   document.getElementById(id).classList.add('active');
 }
 
-function startAnalysis() {
+function cleanDomain(input) {
+  return input.replace(/^https?:\/\//, '').replace(/\/$/, '').split('/')[0].toLowerCase().trim();
+}
+
+function looksLikeRealDomain(input) {
+  const d = cleanDomain(input);
+  const domainRegex = /^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?\.([a-z]{2,})(\.[a-z]{2,})?$/;
+  if (!domainRegex.test(d)) return false;
+  const name = d.split('.')[0];
+  if (name.length < 2) return false;
+  if (/^(test|fake|demo|example|asdf|qwerty|abc|xyz|foo|bar|aaa|bbb|xxx|aaaa|abcd)$/.test(name)) return false;
+  return true;
+}
+
+async function domainExists(domain) {
+  // Use Google's DNS-over-HTTPS API — works from browser, no CORS issues
+  try {
+    const res = await fetch(`https://dns.google/resolve?name=${domain}&type=A`);
+    const data = await res.json();
+    // Status 0 = NOERROR, and must have at least one Answer record
+    return data.Status === 0 && data.Answer && data.Answer.length > 0;
+  } catch (e) {
+    // If DNS check itself fails, fall through and let AI decide
+    return true;
+  }
+}
+
+function showInputError(msg) {
+  const input = document.getElementById('website-url');
+  input.style.borderColor = 'rgba(65,105,225,0.8)';
+  let err = document.getElementById('url-error');
+  if (!err) {
+    err = document.createElement('div');
+    err.id = 'url-error';
+    err.style.cssText = 'font-size:12px;color:#7a9ef0;margin-top:-4px;padding-left:4px;';
+    input.parentNode.insertBefore(err, input.nextSibling);
+  }
+  err.textContent = msg;
+  setTimeout(() => {
+    input.style.borderColor = '';
+    if (err) err.textContent = '';
+  }, 3500);
+}
+
+function setCtaLoading(loading) {
+  const btn = document.querySelector('.cta-btn');
+  if (loading) {
+    btn.textContent = 'Checking domain…';
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+  } else {
+    btn.textContent = 'Analyze My Website →';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+  }
+}
+
+async function startAnalysis() {
   const urlInput = document.getElementById('website-url').value.trim();
   const icp = document.getElementById('icp-select').value;
+
   if (!urlInput) {
-    document.getElementById('website-url').focus();
-    document.getElementById('website-url').style.borderColor = 'rgba(65,105,225,0.8)';
-    setTimeout(() => document.getElementById('website-url').style.borderColor = '', 2000);
+    showInputError('Please enter your website URL.');
     return;
   }
-  websiteUrl = urlInput.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  if (!looksLikeRealDomain(urlInput)) {
+    showInputError('Please enter a real company website (e.g. yourcompany.com)');
+    return;
+  }
+
+  const domain = cleanDomain(urlInput);
+
+  // Real DNS check
+  setCtaLoading(true);
+  const exists = await domainExists(domain);
+  setCtaLoading(false);
+
+  if (!exists) {
+    showInputError(`We couldn't find a website at "${domain}". Please check the URL and try again.`);
+    return;
+  }
+
+  websiteUrl = domain;
   icpTarget = icp;
   document.getElementById('loader-url-display').textContent = websiteUrl;
   showScreen('screen-loader');
@@ -1134,6 +1207,18 @@ function runLoaderSequence() {
   nextStep();
 }
 
+function showGateError(msg) {
+  let err = document.getElementById('gate-error');
+  if (!err) {
+    err = document.createElement('div');
+    err.id = 'gate-error';
+    err.style.cssText = 'font-size:13px;color:#7a9ef0;text-align:center;margin-top:8px;padding:10px 14px;background:rgba(65,105,225,0.08);border:1px solid rgba(65,105,225,0.2);border-radius:8px;';
+    document.querySelector('.gate-form').after(err);
+  }
+  err.textContent = '⚠ ' + msg;
+  setTimeout(() => { if (err) err.textContent = ''; }, 5000);
+}
+
 async function unlockReport() {
   const email = document.getElementById('gate-email').value.trim();
   if (!email || !email.includes('@')) {
@@ -1147,14 +1232,19 @@ async function unlockReport() {
   document.getElementById('gate-spinner').style.display = 'block';
   try {
     await fetchAnalysisFromClaude(websiteUrl, icpTarget, email, company);
+    if (analysisData && analysisData.error === 'not_found') {
+      document.getElementById('gate-btn-text').style.display = 'block';
+      document.getElementById('gate-spinner').style.display = 'none';
+      showGateError(analysisData.message || 'We could not find enough information about this website. Please enter a real company domain.');
+      return;
+    }
     buildResultsDashboard(analysisData);
     showScreen('screen-results');
   } catch (e) {
     console.error(e);
-    // Fallback with default data
-    analysisData = getDefaultData();
-    buildResultsDashboard(analysisData);
-    showScreen('screen-results');
+    document.getElementById('gate-btn-text').style.display = 'block';
+    document.getElementById('gate-spinner').style.display = 'none';
+    showGateError('Something went wrong. Please try again.');
   }
 }
 
@@ -1174,7 +1264,10 @@ Website: ${url}
 Target ICP: ${icpLabel}
 Contact: ${email}${companyCtx}
 
-Return ONLY this JSON (no markdown):
+IMPORTANT: If the domain appears to be fake, a test domain, gibberish, a personal blog with no business, or you cannot find any real company information about it after searching — return ONLY this JSON and nothing else:
+{"error": "not_found", "message": "We couldn\'t find a real business at this domain. Please enter your actual company website."}
+
+Otherwise, if it is a real company, return ONLY this JSON (no markdown):
 
 {
   "score": <integer 30-75>,
