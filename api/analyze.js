@@ -10,6 +10,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log('WEBHOOK URL:', process.env.SHEET_WEBHOOK_URL || 'NOT SET');
+    console.log('LEAD DATA:', JSON.stringify(req.body.leadData || 'MISSING'));
+    console.log('BODY KEYS:', Object.keys(req.body || {}));
+
     // Fire lead to Google Sheets (non-blocking)
     const { email, company, website, icp } = req.body.leadData || {};
     if (email && process.env.SHEET_WEBHOOK_URL) {
@@ -17,7 +21,7 @@ export default async function handler(req, res) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, company, website, icp, score: '' })
-      }).catch(() => {}); // fire and forget
+      }).catch(() => {});
     }
 
     // Strip leadData before sending to OpenAI
