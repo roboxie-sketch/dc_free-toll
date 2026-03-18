@@ -852,6 +852,7 @@ Exactly 4 missedOpps (2 red 2 yellow), 3 signals, 4 funnelSteps, 4 comparisons.`
     body: JSON.stringify({
       model: 'gpt-4o-search-preview',
       web_search_options: {},
+      leadData: { email, company, website: url, icp: icpLabel },
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt }
