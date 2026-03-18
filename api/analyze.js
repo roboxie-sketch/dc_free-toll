@@ -9,10 +9,33 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: { message: 'OPENAI_API_KEY not set.' } });
   }
 
-  // Capture lead details from request
-  const { leadEmail, leadCompany, leadWebsite, leadICP, ...openaiBody } = req.body;
+  try {
+    // Fire lead to Google Sheets (non-blocking)
+    const { email, company, website, icp } = req.body.leadData || {};
+    if (email && process.env.SHEET_WEBHOOK_URL) {
+      fetch(process.env.SHEET_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, company, website, icp, score: '' })
+      }).catch(() => {}); // fire and forget
+    }
 
-  // Send lead notification email (fire and forget — don't block the main request)
-  if (leadEmail && process.env.RESEND_API_KEY) {
-    fetch('https://api.resend.com/emails', {
-      method:
+    // Strip leadData before sending to OpenAI
+    const { leadData, ...openAIBody } = req.body;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(openAIBody)
+    });
+
+    const data = await response.json();
+    res.status(200).json(data);
+
+  } catch (err) {
+    res.status(500).json({ error: { message: err.message } });
+  }
+}
