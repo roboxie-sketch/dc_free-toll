@@ -10,31 +10,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Send lead notification email
+    // Send lead to Google Sheets
     const { email, company, website, icp } = req.body.leadData || {};
-    if (email && process.env.RESEND_API_KEY) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
-        },
-        body: JSON.stringify({
-          from: 'leads@demandcurvehub.com',
-          to: 'roshanmt@demandcurvehub.com',
-          subject: `New Lead: ${company || website}`,
-          html: `
-            <h2>New Revenue Leak Finder Lead</h2>
-            <table style="border-collapse:collapse;width:100%">
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd">${email}</td></tr>
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Company</strong></td><td style="padding:8px;border:1px solid #ddd">${company || '—'}</td></tr>
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Website</strong></td><td style="padding:8px;border:1px solid #ddd">${website}</td></tr>
-              <tr><td style="padding:8px;border:1px solid #ddd"><strong>ICP</strong></td><td style="padding:8px;border:1px solid #ddd">${icp || '—'}</td></tr>
-            </table>
-            <p style="margin-top:16px"><a href="https://calendly.com/roshanmt074/30min">Book a demo with them →</a></p>
-          `
-        })
-      });
+    if (email && process.env.SHEET_WEBHOOK_URL) {
+      try {
+        const webhookUrl = process.env.SHEET_WEBHOOK_URL;
+        const payload = JSON.stringify({ email, company, website, icp, score: '' });
+
+        const sheetRes = await fetch(webhookUrl, {
+          method: 'POST',
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: payload
+        });
+        const sheetText = await sheetRes.text();
+        console.log('Sheet response:', sheetText);
+      } catch (sheetErr) {
+        console.log('Sheet error:', sheetErr.message);
+      }
     }
 
     // Strip leadData before sending to OpenAI
