@@ -1241,10 +1241,10 @@ async function unlockReport() {
     buildResultsDashboard(analysisData);
     showScreen('screen-results');
   } catch (e) {
-    console.error(e);
+    console.error('Full error:', e);
     document.getElementById('gate-btn-text').style.display = 'block';
     document.getElementById('gate-spinner').style.display = 'none';
-    showGateError('Something went wrong. Please try again.');
+    showGateError('Error: ' + e.message);
   }
 }
 
@@ -1319,6 +1319,16 @@ Exactly 4 missedOpps (2 red, 2 yellow), 3 signals, 4 funnelSteps, 4 comparisons.
     })
   });
   const data = await response.json();
+  console.log('OpenAI raw response:', JSON.stringify(data, null, 2));
+
+  // Surface any API-level error clearly
+  if (data.error) {
+    throw new Error(`OpenAI API error: ${data.error.message || JSON.stringify(data.error)}`);
+  }
+  if (!data.choices || data.choices.length === 0) {
+    throw new Error(`No choices in response. Full response: ${JSON.stringify(data)}`);
+  }
+
   const text = data.choices[0].message.content || '';
   const clean = text.replace(/```json|```/g, '').trim();
   analysisData = JSON.parse(clean);
