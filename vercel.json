@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "api/analyze.js": {
+      "memory": 512,
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "OPENAI_API_KEY": "@openai_api_key"
+  }
+}
+```
+
+**2. Then in Vercel dashboard** → Settings → Environment Variables → delete the current one and re-add it with this exact name (lowercase, underscore):
+```
+openai_api_key
