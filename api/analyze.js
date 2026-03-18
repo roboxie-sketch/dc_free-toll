@@ -10,20 +10,31 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fire lead to Google Sheets — awaited so it completes before function ends
+    // Send lead notification email
     const { email, company, website, icp } = req.body.leadData || {};
-    if (email && process.env.SHEET_WEBHOOK_URL) {
-      try {
-        const sheetRes = await fetch(process.env.SHEET_WEBHOOK_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ email, company, website, icp, score: '' })
-        });
-        const sheetData = await sheetRes.text();
-        console.log('Sheet response:', sheetData);
-      } catch (sheetErr) {
-        console.log('Sheet error:', sheetErr.message);
-      }
+    if (email && process.env.RESEND_API_KEY) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`
+        },
+        body: JSON.stringify({
+          from: 'leads@demandcurvehub.com',
+          to: 'roshanmt@demandcurvehub.com',
+          subject: `New Lead: ${company || website}`,
+          html: `
+            <h2>New Revenue Leak Finder Lead</h2>
+            <table style="border-collapse:collapse;width:100%">
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Email</strong></td><td style="padding:8px;border:1px solid #ddd">${email}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Company</strong></td><td style="padding:8px;border:1px solid #ddd">${company || '—'}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>Website</strong></td><td style="padding:8px;border:1px solid #ddd">${website}</td></tr>
+              <tr><td style="padding:8px;border:1px solid #ddd"><strong>ICP</strong></td><td style="padding:8px;border:1px solid #ddd">${icp || '—'}</td></tr>
+            </table>
+            <p style="margin-top:16px"><a href="https://calendly.com/roshanmt074/30min">Book a demo with them →</a></p>
+          `
+        })
+      });
     }
 
     // Strip leadData before sending to OpenAI
